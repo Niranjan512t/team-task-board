@@ -1,0 +1,447 @@
+//this is the code written by AI  simple task board app that allows users to create, view, and manage tasks. It uses local storage to save tasks between sessions. The app has three columns: "To do", "In progress", and "Done". Users can filter tasks by priority and search for specific tasks. Each task can be assigned to a team member and has a due date. The app is responsive and works well on different screen sizes.
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f6fa">
+  <title>Team Task Board</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #20243a;
+      --muted: #81869a;
+      --line: #e8eaf1;
+      --surface: #fff;
+      --page: #f5f6fa;
+      --purple: #6958d9;
+      --purple-soft: #f0edff;
+      --shadow: 0 8px 24px rgba(32, 36, 58, .055);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--ink);
+      background: var(--page);
+    }
+
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; }
+
+    .app-shell { min-height: 100vh; }
+
+    .topbar {
+      height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 clamp(20px, 5vw, 72px);
+      background: var(--surface);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .brand { display: flex; align-items: center; gap: 12px; font-weight: 750; letter-spacing: -.03em; }
+    .brand-mark {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 11px;
+      color: white;
+      background: var(--purple);
+      font-size: 19px;
+    }
+
+    .team-info { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13px; }
+    .avatar-stack { display: flex; padding-left: 6px; }
+    .avatar {
+      width: 31px;
+      height: 31px;
+      display: grid;
+      place-items: center;
+      margin-left: -6px;
+      border: 2px solid white;
+      border-radius: 50%;
+      color: #473b8d;
+      background: #e7e2ff;
+      font-size: 10px;
+      font-weight: 750;
+    }
+    .avatar:nth-child(2) { color: #236357; background: #d7f0e9; }
+    .avatar:nth-child(3) { color: #925b31; background: #ffead8; }
+    .avatar:nth-child(4) { color: #945071; background: #f8deeb; }
+
+    main { max-width: 1480px; margin: 0 auto; padding: 40px clamp(20px, 5vw, 72px) 64px; }
+    .heading-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
+    .eyebrow { margin: 0 0 9px; color: var(--purple); font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    h1 { margin: 0; font-size: clamp(27px, 4vw, 36px); letter-spacing: -.045em; }
+    .subtitle { margin: 9px 0 0; color: var(--muted); font-size: 14px; }
+
+    .primary-button {
+      border: 0;
+      border-radius: 10px;
+      padding: 12px 17px;
+      color: white;
+      background: var(--purple);
+      box-shadow: 0 5px 12px rgba(105, 88, 217, .2);
+      font-size: 13px;
+      font-weight: 700;
+      transition: background .15s, transform .15s;
+    }
+    .primary-button:hover { background: #5847c7; transform: translateY(-1px); }
+    .primary-button:focus-visible, .toolbar input:focus-visible, .toolbar select:focus-visible, .task-card button:focus-visible, .dialog input:focus-visible, .dialog select:focus-visible, .dialog textarea:focus-visible {
+      outline: 3px solid rgba(105, 88, 217, .28);
+      outline-offset: 2px;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin: 30px 0 25px;
+    }
+    .stat {
+      padding: 17px 19px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: var(--surface);
+    }
+    .stat-label { color: var(--muted); font-size: 12px; }
+    .stat-value { display: block; margin-top: 5px; font-size: 24px; font-weight: 750; letter-spacing: -.04em; }
+
+    .toolbar { display: flex; align-items: center; gap: 10px; margin: 0 0 18px; }
+    .toolbar input, .toolbar select {
+      min-height: 40px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      padding: 0 12px;
+      color: var(--ink);
+      background: white;
+      font-size: 12px;
+    }
+    .toolbar input { width: min(280px, 100%); }
+    .toolbar select { min-width: 130px; }
+    .board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
+    .column { min-width: 0; padding: 15px; border: 1px solid var(--line); border-radius: 14px; background: #f0f1f6; }
+    .column-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 13px; }
+    .column-title { display: flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 750; }
+    .column-dot { width: 8px; height: 8px; border-radius: 50%; background: #9da2b3; }
+    .column[data-status="in-progress"] .column-dot { background: #f1aa4b; }
+    .column[data-status="done"] .column-dot { background: #43b58b; }
+    .task-count { min-width: 23px; padding: 4px 7px; border-radius: 7px; color: var(--muted); background: white; text-align: center; font-size: 11px; }
+    .task-list { display: grid; gap: 10px; }
+    .task-card { padding: 14px; border: 1px solid #e9eaf0; border-radius: 11px; background: white; box-shadow: 0 3px 8px rgba(32, 36, 58, .025); }
+    .task-card h3 { margin: 10px 0 6px; font-size: 13px; line-height: 1.45; }
+    .task-card p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+    .task-topline, .task-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .priority { display: inline-flex; align-items: center; gap: 5px; color: #777c8e; font-size: 10px; font-weight: 700; }
+    .priority::before { width: 6px; height: 6px; border-radius: 50%; background: #9da2b3; content: ""; }
+    .priority[data-priority="High"]::before { background: #ee7474; }
+    .priority[data-priority="Medium"]::before { background: #f1aa4b; }
+    .priority[data-priority="Low"]::before { background: #43b58b; }
+    .delete-button { border: 0; padding: 2px 4px; color: #a4a8b5; background: transparent; font-size: 16px; line-height: 1; }
+    .delete-button:hover { color: #d95363; }
+    .task-footer { margin-top: 15px; padding-top: 11px; border-top: 1px solid #f0f0f4; }
+    .assignee { display: flex; align-items: center; gap: 7px; color: #777c8e; font-size: 10px; }
+    .mini-avatar { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; color: #473b8d; background: #e7e2ff; font-size: 8px; font-weight: 800; }
+    .task-date { color: var(--muted); font-size: 10px; }
+    .move-button { border: 1px solid var(--line); border-radius: 7px; padding: 5px 7px; color: #686d7e; background: white; font-size: 10px; }
+    .move-button:hover { border-color: #c9c2f4; color: var(--purple); }
+    .empty-state { padding: 25px 8px; color: #999eac; text-align: center; font-size: 11px; }
+
+    dialog { width: min(440px, calc(100% - 32px)); padding: 0; border: 0; border-radius: 16px; box-shadow: 0 24px 80px rgba(24, 27, 45, .2); }
+    dialog::backdrop { background: rgba(26, 29, 46, .42); }
+    .dialog { padding: 24px; }
+    .dialog h2 { margin: 0 0 5px; font-size: 20px; letter-spacing: -.03em; }
+    .dialog-intro { margin: 0 0 20px; color: var(--muted); font-size: 12px; }
+    .form-field { display: grid; gap: 7px; margin-bottom: 14px; }
+    .form-field label { font-size: 11px; font-weight: 700; }
+    .form-field input, .form-field select, .form-field textarea { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 10px; color: var(--ink); background: white; font-size: 12px; }
+    .form-field textarea { min-height: 78px; resize: vertical; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .dialog-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 20px; }
+    .secondary-button { border: 1px solid var(--line); border-radius: 9px; padding: 10px 14px; color: #666b7d; background: white; font-size: 12px; font-weight: 700; }
+
+    @media (max-width: 850px) {
+      .board { grid-template-columns: 1fr; }
+      .column { padding: 13px; }
+      .task-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 560px) {
+      .topbar { height: 62px; }
+      .team-info > span:first-child { display: none; }
+      main { padding-top: 29px; }
+      .heading-row { align-items: flex-start; }
+      .heading-row .primary-button { padding: 10px 11px; white-space: nowrap; }
+      .stats { gap: 8px; margin-top: 23px; }
+      .stat { padding: 13px 10px; }
+      .stat-value { font-size: 20px; }
+      .stat-label { font-size: 10px; }
+      .toolbar { align-items: stretch; }
+      .toolbar input { min-width: 0; flex: 1; }
+      .toolbar select { min-width: 110px; }
+      .task-list { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark" aria-hidden="true">✓</span><span>teamboard</span></div>
+      <div class="team-info">
+        <span>Product team</span>
+        <div class="avatar-stack" aria-label="4 team members">
+          <span class="avatar" title="Alex Morgan">AM</span>
+          <span class="avatar" title="Jamie Lee">JL</span>
+          <span class="avatar" title="Sam Rivera">SR</span>
+          <span class="avatar" title="Taylor Kim">TK</span>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="heading-row" aria-labelledby="board-title">
+        <div>
+          <p class="eyebrow">Workspace / Projects</p>
+          <h1 id="board-title">Team task board</h1>
+          <p class="subtitle">A little progress each day adds up to big results.</p>
+        </div>
+        <button class="primary-button" id="open-dialog" type="button">＋ Add task</button>
+      </section>
+
+      <section class="stats" aria-label="Board summary">
+        <div class="stat"><span class="stat-label">Total tasks</span><strong class="stat-value" id="total-count">0</strong></div>
+        <div class="stat"><span class="stat-label">In progress</span><strong class="stat-value" id="progress-count">0</strong></div>
+        <div class="stat"><span class="stat-label">Completed</span><strong class="stat-value" id="done-count">0</strong></div>
+      </section>
+
+      <section aria-label="Tasks">
+        <div class="toolbar">
+          <input id="search" type="search" placeholder="⌕  Search tasks..." aria-label="Search tasks">
+          <select id="priority-filter" aria-label="Filter by priority">
+            <option value="all">All priorities</option>
+            <option value="High">High priority</option>
+            <option value="Medium">Medium priority</option>
+            <option value="Low">Low priority</option>
+          </select>
+        </div>
+        <div class="board" id="board"></div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="task-dialog">
+    <form class="dialog" id="task-form">
+      <h2>Add a task</h2>
+      <p class="dialog-intro">Create a task for your team to work on.</p>
+      <div class="form-field">
+        <label for="task-title">Task name</label>
+        <input id="task-title" name="title" maxlength="100" required placeholder="e.g. Prepare launch checklist">
+      </div>
+      <div class="form-field">
+        <label for="task-description">Description <span style="font-weight:400;color:#81869a">(optional)</span></label>
+        <textarea id="task-description" name="description" maxlength="240" placeholder="Add a few details..."></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label for="task-assignee">Assignee</label>
+          <select id="task-assignee" name="assignee">
+            <option>Alex Morgan</option>
+            <option>Jamie Lee</option>
+            <option>Sam Rivera</option>
+            <option>Taylor Kim</option>
+            <option>Unassigned</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="task-priority">Priority</label>
+          <select id="task-priority" name="priority">
+            <option>Medium</option>
+            <option>High</option>
+            <option>Low</option>
+          </select>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button class="secondary-button" id="cancel-dialog" type="button">Cancel</button>
+        <button class="primary-button" type="submit">Create task</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script>
+    const statuses = [
+      { id: "todo", title: "To do", next: "in-progress", action: "Start" },
+      { id: "in-progress", title: "In progress", next: "done", action: "Complete" },
+      { id: "done", title: "Done", next: "todo", action: "Reopen" }
+    ];
+    const members = ["Alex Morgan", "Jamie Lee", "Sam Rivera", "Taylor Kim", "Unassigned"];
+    const initialTasks = [
+      { id: 1, title: "Map out the onboarding experience", description: "Review the current flow and identify the biggest opportunities to make it smoother.", status: "todo", priority: "High", assignee: "Alex Morgan", due: "Jun 18" },
+      { id: 2, title: "Gather customer feedback", description: "Collect notes from the latest round of user interviews.", status: "todo", priority: "Medium", assignee: "Jamie Lee", due: "Jun 20" },
+      { id: 3, title: "Update the design system", description: "Add the new color tokens and button states to the shared library.", status: "todo", priority: "Low", assignee: "Taylor Kim", due: "Jun 24" },
+      { id: 4, title: "Build dashboard overview", description: "Create the first pass of the project overview dashboard.", status: "in-progress", priority: "High", assignee: "Sam Rivera", due: "Jun 19" },
+      { id: 5, title: "Write release notes", description: "Summarize the improvements included in this release.", status: "in-progress", priority: "Medium", assignee: "Alex Morgan", due: "Jun 21" },
+      { id: 6, title: "Set up project workspace", description: "Create the shared workspace and invite the product team.", status: "done", priority: "Low", assignee: "Jamie Lee", due: "Jun 14" }
+    ];
+    const storageKey = "teamboard-tasks-v1";
+    let tasks = loadTasks();
+
+    function loadTasks() {
+      try {
+        const saved = localStorage.getItem(storageKey);
+        if (saved === null) return initialTasks;
+        const parsed = JSON.parse(saved);
+        if (!Array.isArray(parsed)) throw new Error("Saved tasks must be a list.");
+        return parsed;
+      } catch (error) {
+        console.error("Could not load saved tasks:", error);
+        return initialTasks;
+      }
+    }
+
+    function saveTasks() {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(tasks));
+      } catch (error) {
+        console.error("Could not save tasks:", error);
+      }
+    }
+
+    function initials(name) {
+      if (!name || name === "Unassigned") return "—";
+      return name.split(/\s+/).map(part => part[0]).join("").slice(0, 2).toUpperCase();
+    }
+
+    function render() {
+      const query = document.getElementById("search").value.trim().toLowerCase();
+      const priority = document.getElementById("priority-filter").value;
+      const visible = tasks.filter(task =>
+        (priority === "all" || task.priority === priority) &&
+        `${task.title} ${task.description || ""} ${task.assignee || ""}`.toLowerCase().includes(query)
+      );
+
+      document.getElementById("total-count").textContent = tasks.length;
+      document.getElementById("progress-count").textContent = tasks.filter(task => task.status === "in-progress").length;
+      document.getElementById("done-count").textContent = tasks.filter(task => task.status === "done").length;
+
+      const board = document.getElementById("board");
+      board.replaceChildren();
+      statuses.forEach(status => {
+        const columnTasks = visible.filter(task => task.status === status.id);
+        const column = document.createElement("section");
+        column.className = "column";
+        column.dataset.status = status.id;
+        column.setAttribute("aria-label", `${status.title}, ${columnTasks.length} tasks`);
+        column.innerHTML = `<div class="column-header"><div class="column-title"><span class="column-dot"></span>${status.title}</div><span class="task-count">${columnTasks.length}</span></div>`;
+        const list = document.createElement("div");
+        list.className = "task-list";
+        if (columnTasks.length === 0) {
+          const empty = document.createElement("div");
+          empty.className = "empty-state";
+          empty.textContent = query || priority !== "all" ? "No matching tasks" : "No tasks here yet";
+          list.append(empty);
+        }
+        columnTasks.forEach(task => list.append(createCard(task, status)));
+        column.append(list);
+        board.append(column);
+      });
+    }
+
+    function createCard(task, status) {
+      const card = document.createElement("article");
+      card.className = "task-card";
+      const top = document.createElement("div");
+      top.className = "task-topline";
+      const priority = document.createElement("span");
+      priority.className = "priority";
+      priority.dataset.priority = task.priority;
+      priority.textContent = `${task.priority || "Medium"} priority`;
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "delete-button";
+      remove.setAttribute("aria-label", `Delete ${task.title}`);
+      remove.title = "Delete task";
+      remove.textContent = "×";
+      remove.addEventListener("click", () => {
+        tasks = tasks.filter(item => item.id !== task.id);
+        saveTasks();
+        render();
+      });
+      top.append(priority, remove);
+
+      const title = document.createElement("h3");
+      title.textContent = task.title;
+      card.append(top, title);
+      if (task.description) {
+        const description = document.createElement("p");
+        description.textContent = task.description;
+        card.append(description);
+      }
+
+      const footer = document.createElement("div");
+      footer.className = "task-footer";
+      const person = document.createElement("span");
+      person.className = "assignee";
+      const avatar = document.createElement("span");
+      avatar.className = "mini-avatar";
+      avatar.textContent = initials(task.assignee);
+      const name = document.createElement("span");
+      name.textContent = task.assignee || "Unassigned";
+      person.append(avatar, name);
+      footer.append(person);
+      if (task.due) {
+        const date = document.createElement("span");
+        date.className = "task-date";
+        date.textContent = task.due;
+        footer.append(date);
+      }
+      const move = document.createElement("button");
+      move.type = "button";
+      move.className = "move-button";
+      move.textContent = status.action;
+      move.setAttribute("aria-label", `${status.action}: ${task.title}`);
+      move.addEventListener("click", () => {
+        task.status = status.next;
+        saveTasks();
+        render();
+      });
+      footer.append(move);
+      card.append(footer);
+      return card;
+    }
+
+    const dialog = document.getElementById("task-dialog");
+    document.getElementById("open-dialog").addEventListener("click", () => dialog.showModal());
+    document.getElementById("cancel-dialog").addEventListener("click", () => dialog.close());
+    document.getElementById("search").addEventListener("input", render);
+    document.getElementById("priority-filter").addEventListener("change", render);
+    document.getElementById("task-form").addEventListener("submit", event => {
+      event.preventDefault();
+      const data = new FormData(event.currentTarget);
+      const title = String(data.get("title") || "").trim();
+      if (!title) return;
+      tasks.unshift({
+        id: Date.now(),
+        title,
+        description: String(data.get("description") || "").trim(),
+        status: "todo",
+        priority: String(data.get("priority")),
+        assignee: String(data.get("assignee")),
+        due: ""
+      });
+      saveTasks();
+      event.currentTarget.reset();
+      dialog.close();
+      render();
+    });
+
+    render();
+  </script>
+</body>
+</html>
